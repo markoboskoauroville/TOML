@@ -1,0 +1,90 @@
+# TOML
+
+**Merge an exported key file into a secrets file, on your own phone, and copy the result.**
+
+Termux · Flask · loopback only · version 1
+
+---
+
+## What it is for
+
+21 Hume accounts, each an API key *and* a secret key. 5 Groq keys, and more every rotation.
+Streamlit wants them as TOML. Typing that into a phone by hand is not a thing anybody does
+twice, and pasting keys into a chat to have them formatted puts them in a transcript that
+cannot be unsent.
+
+So the formatting happens on the device that already has the keys.
+
+    1  choose your secrets file      (or none, to start a fresh one)
+    2  choose the exported key file
+    3  press merge, press copy, paste into Streamlit
+
+## Install
+
+```bash
+bash 1-toml-v1-termux.sh
+```
+
+Then `toml`, from anywhere.
+
+## What it does not do
+
+**It does not write anything.** The merged text lives in the server process and goes when you
+quit it. Not saved, not cached, not logged.
+
+**It does not talk to the network.** There is no outbound call in the program. Grep it.
+
+**It does not remove a key.** A key in your file but not in the export stays. Rotating means
+adding the new one here and revoking the old one at the provider — a merge tool that dropped
+keys would be doing the revoking in the wrong place, with no way back.
+
+**It does not lose your file.** Comments, usernames, `SHEETS_URL`, spacing: through byte for
+byte. The merge is surgical — only the arrays and the `[[HUME_ACCOUNTS]]` blocks are touched.
+
+## Security
+
+Loopback only — `127.0.0.1`, **not** `0.0.0.0`. The transcription app binds every interface so
+any device on the Wi-Fi can reach it; that is right for a transcription page and wrong for a
+keyring. A café network is a room full of strangers.
+
+Binding to loopback stops the network. It does not stop a **web page**: any site open in
+another tab can make your browser send requests to `127.0.0.1:8099` in the background. Three
+checks, lifted from `GDRIVE_DOWNLOADER_FLASK_MACOS/localguard.py`:
+
+| | |
+|---|---|
+| **Host** | must be a loopback name — stops DNS rebinding, which binding alone does not catch |
+| **Origin** | if present, must be this app |
+| **Header** | a header the page always sends and a cross-site request cannot set |
+
+Files are read only from inside your home directory, **resolved through symlinks before the
+check**, so a link pointing at `/etc` does not get you `/etc`.
+
+Values are masked on screen. Copy takes the real text either way — you never have to reveal to
+copy. The mask is deny-by-default: every quoted value over 12 characters is blanked, whatever
+its format, so a key shape nobody has seen yet is masked too.
+
+## The parsers
+
+**Two passes, and the order is the design.**
+
+Pass 1 reads **labels** — Hume's export has an account name, `API key`, the key, `Secret key`,
+the secret. Both halves are plain alphanumeric with no prefix, so shape cannot tell them apart.
+
+Pass 2 reads **shape**, skipping everything pass 1 consumed: `gsk_`, `sk-ant-`, `AIza`/`AQ.`,
+`sk_`, 32-hex, and a loose catch-all that lands in `unknown` and is **never** merged into a
+named provider without being asked. That last part is deliberate: TTT-LLL's `import_keys` has a
+generic fallback that put five AssemblyAI keys in the Speechify ring.
+
+## Tests
+
+```bash
+python3 tests/test_parse_merge.py    # 47 — parser, merge, masking, the real exports
+python3 tests/test_server.py         # 24 — real HTTP, guard sabotage, path escapes
+python3 tools/build_installer.py --check
+```
+
+The installer is **generated** from the source files, never pasted beside them, and carries the
+hash of each source it was built from. One repository, not two copies.
+
+*Mantra Productions.*

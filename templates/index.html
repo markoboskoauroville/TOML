@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TOML</title>
+<style>
+/* design-language.md §3, the measured palette. Amber is the accent in
+   every Mantra app and this one is no exception. */
+:root{
+  --bg:#0B0D10; --surface:#141A21; --slate:#23303D;
+  --amber:#F59E0B; --amber-dim:#E8A64B; --sand:#F2DDB4;
+  --red:#EF4444; --green:#22C55E;
+  --gap:14px;                     /* §10 equal distances, everywhere */
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--sand);
+  font:16px/1.5 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+  -webkit-text-size-adjust:100%}
+body{padding:var(--gap) var(--gap) 40px}
+
+/* §10 the row has two ends and a middle */
+header{display:flex;align-items:baseline;gap:var(--gap);
+  margin:0 0 var(--gap)}
+header h1{margin:0;font-size:22px;letter-spacing:.14em;color:var(--amber);
+  font-weight:600}
+header .mid{flex:1;font-size:13px;color:#8A93A0}
+header .ver{font-size:13px;color:#8A93A0;font-variant-numeric:tabular-nums}
+
+section{background:var(--surface);border-radius:12px;padding:var(--gap);
+  margin:0 0 var(--gap)}
+h2{margin:0 0 10px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--amber-dim);font-weight:600}
+
+.slot{display:flex;align-items:center;gap:10px;min-height:44px}
+.slot .path{flex:1;font-family:ui-monospace,Menlo,monospace;font-size:13px;
+  color:var(--sand);word-break:break-all;opacity:.95}
+.slot .path.empty{opacity:.45}
+
+/* §1 nothing appears, nothing disappears. Every control is rendered from
+   the first frame and dimmed with opacity + pointer-events, which do not
+   touch layout, so the page never jumps. */
+button{font:inherit;min-height:44px;padding:0 16px;border-radius:10px;
+  border:1px solid var(--slate);background:var(--slate);color:var(--sand);
+  cursor:pointer;transition:opacity .12s}
+button.primary{background:var(--amber);border-color:var(--amber);color:#1A1206;
+  font-weight:600}
+button.ghost{background:transparent}
+button[disabled],.off{opacity:.35;pointer-events:none}
+button:active{transform:translateY(1px)}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+
+/* the picker */
+.picker{position:fixed;inset:0;background:rgba(11,13,16,.97);z-index:9;
+  padding:var(--gap);overflow:auto;display:none}
+.picker.on{display:block}
+.picker .cwd{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  color:#8A93A0;word-break:break-all;margin:0 0 10px}
+.entry{display:flex;align-items:center;gap:12px;min-height:44px;
+  padding:0 10px;border-radius:8px;cursor:pointer}
+.entry:active{background:var(--slate)}
+.entry .glyph{width:22px;text-align:center;color:var(--amber-dim)}
+.entry .nm{flex:1;word-break:break-all}
+.entry .sz{font-size:12px;color:#8A93A0;font-variant-numeric:tabular-nums}
+
+textarea{width:100%;min-height:240px;background:#0E1318;color:var(--sand);
+  border:1px solid var(--slate);border-radius:10px;padding:12px;
+  font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.45;
+  white-space:pre;overflow-wrap:normal;overflow-x:auto}
+
+.tally{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.chip{font-size:13px;padding:5px 11px;border-radius:999px;
+  background:var(--slate);color:var(--sand)}
+.chip b{color:var(--amber);font-variant-numeric:tabular-nums}
+.chip.none{opacity:.5}
+
+.note{font-size:13px;color:#8A93A0;margin:10px 0 0}
+.note.warn{color:var(--amber-dim)}
+.err{color:var(--red);font-size:14px;margin:10px 0 0;min-height:20px}
+.ok{color:var(--green)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TOML</h1>
+  <span class="mid">merge · format · copy</span>
+  <span class="ver">{{ version }}</span>
+</header>
+
+<section>
+  <h2>1 · your secrets file</h2>
+  <div class="slot">
+    <div class="path empty" id="p-sec">none chosen — a new file will be made</div>
+    <button class="ghost" onclick="pick('sec')">choose</button>
+  </div>
+</section>
+
+<section>
+  <h2>2 · the key export</h2>
+  <div class="slot">
+    <div class="path empty" id="p-key">none chosen</div>
+    <button class="ghost" onclick="pick('key')">choose</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="primary grow" id="b-merge" disabled onclick="doMerge()">merge</button>
+  </div>
+  <p class="note">Hume pairs are read by their labels; Groq, Anthropic,
+     Gemini and the rest by shape. Anything unrecognised is counted and
+     left out.</p>
+</section>
+
+<section>
+  <h2>3 · the result</h2>
+  <div class="tally" id="tally"><span class="chip none">nothing merged yet</span></div>
+  <textarea id="out" readonly spellcheck="false"
+    placeholder="the merged TOML appears here"></textarea>
+  <div class="row" style="margin-top:10px">
+    <button class="primary grow" id="b-copy" disabled onclick="doCopy()">copy</button>
+    <button class="ghost" id="b-eye" disabled onclick="toggleEye()">reveal</button>
+  </div>
+  <p class="note warn" id="masknote">Values are masked on screen. Copy takes
+     the real text either way — you do not have to reveal to copy.</p>
+  <div class="err" id="err"></div>
+</section>
+
+<div class="picker" id="picker">
+  <div class="row" style="margin-bottom:10px">
+    <button class="ghost" onclick="closePicker()">cancel</button>
+    <span class="grow"></span>
+    <button class="ghost" id="b-up" onclick="goUp()">up</button>
+  </div>
+  <p class="cwd" id="cwd"></p>
+  <div id="list"></div>
+</div>
+
+<script>
+const H = {'Content-Type':'application/json','X-Toml-Local':'1'};
+let chosen = {sec:'', key:''};
+let target = null, cwd = null, parent = null;
+let masked = '', revealed = false;
+
+function el(id){ return document.getElementById(id); }
+function say(m, ok){ const e = el('err'); e.textContent = m||''; e.className = ok? 'err ok':'err'; }
+
+async function jget(u){ const r = await fetch(u,{headers:H}); return r.json(); }
+async function jpost(u,b){
+  const r = await fetch(u,{method:'POST',headers:H,body:JSON.stringify(b||{})});
+  return r.json();
+}
+
+/* ---- the picker ---- */
+function pick(which){ target = which; el('picker').classList.add('on'); browse(null); }
+function closePicker(){ el('picker').classList.remove('on'); }
+function goUp(){ if(parent) browse(parent); }
+
+async function browse(path){
+  const d = await jget('/api/ls' + (path? ('?path='+encodeURIComponent(path)) : ''));
+  if(d.error){ say(d.error); closePicker(); return; }
+  cwd = d.path; parent = d.parent;
+  el('cwd').textContent = d.path;
+  el('b-up').classList.toggle('off', !d.parent);
+  const L = el('list'); L.innerHTML = '';
+  d.dirs.forEach(x => L.appendChild(row('▸', x.name, '', () => browse(x.path))));
+  d.files.forEach(x => L.appendChild(row('·', x.name, kb(x.size), () => take(x.path))));
+  if(!d.dirs.length && !d.files.length)
+    L.innerHTML = '<p class="note">nothing readable here</p>';
+}
+function row(glyph, name, size, fn){
+  const e = document.createElement('div');
+  e.className = 'entry';
+  e.innerHTML = '<span class="glyph"></span><span class="nm"></span><span class="sz"></span>';
+  e.children[0].textContent = glyph;
+  e.children[1].textContent = name;
+  e.children[2].textContent = size;
+  e.onclick = fn;
+  return e;
+}
+function kb(n){ return n < 1024 ? n+' B' : Math.round(n/1024)+' KB'; }
+
+function take(path){
+  chosen[target] = path;
+  const p = el(target === 'sec' ? 'p-sec' : 'p-key');
+  p.textContent = path; p.classList.remove('empty');
+  el('b-merge').disabled = !chosen.key;
+  closePicker();
+  say('');
+}
+
+/* ---- merge ---- */
+async function doMerge(){
+  say('');
+  const d = await jpost('/api/merge', {secrets: chosen.sec, keys: [chosen.key]});
+  if(d.error){ say(d.error); return; }
+  masked = d.masked; revealed = false;
+  el('out').value = masked;
+  el('b-copy').disabled = false;
+  el('b-eye').disabled = false;
+  el('b-eye').textContent = 'reveal';
+  tally(d.report, d.lines);
+}
+
+function tally(rep, lines){
+  const T = el('tally'); T.innerHTML = '';
+  let any = false;
+  Object.keys(rep).sort().forEach(k => {
+    const r = rep[k];
+    if(!r.added && !r.already && !r.skipped) return;
+    any = true;
+    const c = document.createElement('span');
+    c.className = 'chip';
+    let s = k + ' <b>+' + r.added + '</b>';
+    if(r.already) s += ' · ' + r.already + ' already there';
+    if(r.skipped) s += ' · ' + r.skipped + ' unrecognised, left out';
+    c.innerHTML = s;
+    T.appendChild(c);
+  });
+  const c = document.createElement('span');
+  c.className = 'chip'; c.innerHTML = '<b>' + lines + '</b> lines';
+  T.appendChild(c);
+  if(!any) T.innerHTML = '<span class="chip none">no keys found in that file</span>';
+}
+
+/* ---- reveal and copy ---- */
+async function toggleEye(){
+  if(revealed){
+    el('out').value = masked; revealed = false;
+    el('b-eye').textContent = 'reveal';
+    el('masknote').textContent = 'Values are masked on screen. Copy takes the real text either way — you do not have to reveal to copy.';
+    return;
+  }
+  const d = await jpost('/api/reveal');
+  el('out').value = d.text; revealed = true;
+  el('b-eye').textContent = 'hide';
+  el('masknote').textContent = 'Real keys are on the screen now. Hide them before anyone looks over your shoulder.';
+}
+
+async function doCopy(){
+  const d = await jpost('/api/reveal');
+  const text = d.text || '';
+  try{
+    await navigator.clipboard.writeText(text);
+    say('copied — ' + text.length + ' characters. Paste into Streamlit secrets.', true);
+  }catch(e){
+    /* A clipboard call that never answers is the fault four-tests.md
+       names by name. Fall back to a selection he can copy by hand
+       rather than leaving a dead button. */
+    const t = el('out');
+    const was = t.value, wasRev = revealed;
+    t.value = text; t.removeAttribute('readonly');
+    t.focus(); t.select(); t.setSelectionRange(0, text.length);
+    say('the browser refused the clipboard — the text is selected, copy it by hand');
+    setTimeout(() => { t.setAttribute('readonly',''); if(!wasRev) t.value = was; }, 15000);
+  }
+}
+</script>
+</body>
+</html>
