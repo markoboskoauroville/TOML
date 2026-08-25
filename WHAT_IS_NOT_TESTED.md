@@ -32,16 +32,23 @@ brightness, and whether the whole thing survives 250% text size.
 counts as one in Chrome and Safari, but that is read from the specification, not measured here.
 The fallback — select the text so it can be copied by hand — is also untested.
 
-## The updater cannot do its real job yet
+## The updater now works against real GitHub — measured
 
-**TOML is a private repository, so an anonymous download 404s.** `toml-update` is tested against a
-real HTTP server on loopback and works perfectly there — but pointed at GitHub today it will reach
-its "could not download it" branch every time. That branch is tested; the successful GitHub path
-is not, and cannot be until the repository is public or a credential is put on the phone.
+The repository was made public on 25.8.2026, on Baba's word. Measured immediately after, with no
+credential anywhere: the raw installer returns 200, the anonymous install runs, and a `toml-update`
+against real GitHub took a faked v1 install to v3 and the version on disk changed.
 
-This also means the clone command given on 25.8.2026 —
-`git clone https://github.com/markoboskoauroville/TOML.git` — **cannot have worked.** Confirmed by
-measurement: raw 404, clone page 404.
+**What is still not proven is that path from a phone**, on mobile data, through whatever proxy a
+Croatian carrier puts in the way.
+
+**Before it went public, the full history was scanned** — every blob in every commit, by known key
+prefixes and by deny-by-default. It found Baba's real TTT-LLL usernames in a test fixture. That
+door has no password behind the username, so the name is the whole credential. They were replaced
+with invented ones and **the history was rewritten and force-pushed before the repository was ever
+public.** GitHub's own copy was then re-cloned and re-scanned: zero.
+
+The earlier clone command given on 25.8.2026 could not have worked while the repo was private —
+raw 404, clone page 404, measured.
 
 ## Tested with substitutes
 

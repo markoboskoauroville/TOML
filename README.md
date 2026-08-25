@@ -22,7 +22,7 @@ So the formatting happens on the device that already has the keys.
 ## Install
 
 ```bash
-bash toml-termux.sh
+curl -fsSL -O https://raw.githubusercontent.com/markoboskoauroville/TOML/main/toml-termux.sh && bash toml-termux.sh
 ```
 
 Then `toml`, from anywhere. **The page opens by itself — there is no address to type.**
