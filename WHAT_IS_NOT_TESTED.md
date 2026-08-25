@@ -1,4 +1,4 @@
-# What is not tested — TOML v2
+# What is not tested — TOML v3
 
 Per `four-tests.md` §"Say what you did NOT test", and it is as plain as what works.
 
@@ -32,7 +32,22 @@ brightness, and whether the whole thing survives 250% text size.
 counts as one in Chrome and Safari, but that is read from the specification, not measured here.
 The fallback — select the text so it can be copied by hand — is also untested.
 
+## The updater cannot do its real job yet
+
+**TOML is a private repository, so an anonymous download 404s.** `toml-update` is tested against a
+real HTTP server on loopback and works perfectly there — but pointed at GitHub today it will reach
+its "could not download it" branch every time. That branch is tested; the successful GitHub path
+is not, and cannot be until the repository is public or a credential is put on the phone.
+
+This also means the clone command given on 25.8.2026 —
+`git clone https://github.com/markoboskoauroville/TOML.git` — **cannot have worked.** Confirmed by
+measurement: raw 404, clone page 404.
+
 ## Tested with substitutes
+
+The launchers carry Termux's shebang, so the tests invoke them through `bash` rather than
+executing them. Check 1f asserts the shebang is the Termux one, so that substitution cannot
+quietly become "the test runs a different program than the phone does".
 
 The upgrade test is now real: **v1 is cloned from GitHub, installed, used, and v2 installed on
 top of it.** v1's absence of `opener.py` is asserted before the upgrade, so it cannot be the new
@@ -42,6 +57,11 @@ no stored format has changed.
 ## What was measured
 
 - 47 parser/merge checks, including Baba's real 21-account Hume export and real 5-key Groq export
+- 30 checks on `toml-update` against a real HTTP server: it installs a different version and the
+  files on disk are asserted to have changed, all four validations, the y/n prompt, an unreachable
+  host, and the frozen filename. Two mutations prove the warnings check and the sentinel check
+  each fail alone — the first draft of them overlapped and one could be deleted with everything
+  still green
 - 17 checks on the auto-open: every branch of the chooser, the `am` exit-zero lie, the wait for
   the port, port collision, and one end-to-end run where the real server opens a real URL that
   really answers 200 on a port it had to move to

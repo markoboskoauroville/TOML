@@ -2,7 +2,7 @@
 
 **Merge an exported key file into a secrets file, on your own phone, and copy the result.**
 
-Termux · Flask · loopback only · version 2
+Termux · Flask · loopback only · version 3
 
 ---
 
@@ -22,10 +22,45 @@ So the formatting happens on the device that already has the keys.
 ## Install
 
 ```bash
-bash 2-toml-v2-termux.sh
+bash toml-termux.sh
 ```
 
 Then `toml`, from anywhere. **The page opens by itself — there is no address to type.**
+
+## Update
+
+```bash
+toml-update
+```
+
+One word, every time. It fetches the current version, **asks before it changes anything**, and
+installs it in the same run — because an updater that only leaves a command behind and installs
+nothing *looks exactly like nothing happening*.
+
+**Four checks before it replaces a single file**, each able to fail on its own:
+
+| | catches |
+|---|---|
+| size | a captive-portal login page instead of an installer |
+| shebang on line 1 | an error page, an HTML redirect |
+| `bash -n` with **no output at all** | a genuine parse warning |
+| the last line is `# TOML-INSTALLER-END` | a transfer that stopped early |
+
+**The last one is there because `bash -n` is not a completeness check.** Measured 25.8.2026: this
+installer cut in half mid-heredoc makes `bash -n` print `warning: here-document delimited by
+end-of-file` and **exit zero**. It passed the parse check and installed half the app.
+`ma-reader-thermux/update.sh` uses the same three checks and has the same hole.
+
+If any check fails it prints **nothing was changed** and stops. That sentence is the point of the
+checks.
+
+### The filename is frozen, on purpose
+
+`toml-termux.sh`, and it will not be renamed. `toml-update` fetches it by that exact name, so a
+new number in the filename every build would break the one command you actually type. The version
+lives in the `edition: v<n>` line inside the file, in `APP_VERSION`, and in the banner —
+`tools/bump.py` keeps all three in step and refuses to run when they already disagree. See
+`MANTRA_MANIFEST/modules/termux-app.md` §11 for why this and `versioning.md` are both right.
 
 ### How it opens, and why it is not one line
 
@@ -110,6 +145,7 @@ generic fallback that put five AssemblyAI keys in the Speechify ring.
 python3 tests/test_parse_merge.py    # 47 — parser, merge, masking, the real exports
 python3 tests/test_server.py         # 24 — real HTTP, guard sabotage, path escapes
 python3 tests/test_opener.py         # 17 — auto-open, the am lie, port collision
+python3 tests/test_update.py         # 30 — toml-update, over a real HTTP server
 python3 tools/build_installer.py --check
 ```
 

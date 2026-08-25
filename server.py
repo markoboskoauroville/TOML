@@ -31,7 +31,7 @@ import opener         # noqa: E402
 import parsers        # noqa: E402
 import portpick       # noqa: E402
 
-APP_VERSION = "v2"
+APP_VERSION = "v3"
 HOST = "127.0.0.1"
 WANTED_PORT = int(os.environ.get("TOML_PORT", "8099"))
 # THE PORT ACTUALLY BOUND, filled in by main(). Everything that needs a

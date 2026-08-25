@@ -23,8 +23,19 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VERSION = "2"
-OUT = os.path.join(ROOT, "%s-toml-v%s-termux.sh" % (VERSION, VERSION))
+VERSION = "3"
+# THE FILENAME IS FROZEN, and that is deliberate.
+#
+# MANTRA_MANIFEST/modules/termux-app.md §11: versioning.md wants the whole
+# number at both ends of the filename, and that is right for an artefact
+# DOWNLOADED BY HAND. It is wrong for one FETCHED BY NAME by an updater —
+# `toml-update` asks for this exact path, so renaming it on every build
+# would break the one command Baba actually types.
+#
+# So the name is an address and never changes. The version lives in the
+# `edition: v<n>` line inside the file, in APP_VERSION in server.py, and in
+# the banner. tools/bump.py keeps those in step.
+OUT = os.path.join(ROOT, "toml-termux.sh")
 
 SOURCES = ["parsers.py", "merge.py", "guard.py", "portpick.py",
            "opener.py", "server.py", "templates/index.html"]
@@ -73,7 +84,13 @@ HEADER = r'''#!/data/data/com.termux/files/usr/bin/bash
 # whatever the system gives - and it says which, because a page that quietly
 # opens somewhere else is its own confusion.
 #
-# Install:  bash %s-toml-v%s-termux.sh      Run:  toml
+# ONE WORD TO UPDATE. `toml-update` fetches the current version and installs
+# it, and it asks before it changes anything. It refuses a download that is
+# the wrong size, does not start with a shebang, or does not parse - because
+# a truncated installer that gets installed is worse than an update that
+# failed and said so.
+#
+# Install:  bash toml-termux.sh      Run:  toml      Update:  toml-update
 ###############################################################################
 set -e
 
@@ -106,13 +123,36 @@ else
   printf '  '"$RED"'flask   MISSING'"$OFF"'   run: pip install flask waitress\n'
 fi
 echo ""
-''' % (VERSION, VERSION, VERSION, VERSION)
+''' % (VERSION, VERSION)
 
 LAUNCHER = r'''
-# ---------------------------------------------------------- global command --
+# ------------------------------------------- replacing a RUNNING command ----
+# toml-update is a shell script that runs THIS installer, so while this is
+# writing, the old updater is still alive and bash is still reading it. A
+# plain "cat >" truncates the file the running shell is reading from, and it
+# carries on at the old byte offset into whatever is there now - either
+# nothing, or the middle of a different line. Small files survive by luck,
+# because bash had already buffered the whole thing. Luck is not a mechanism.
+#
+# So each command is written beside its own name and RENAMED over the top. A
+# rename swaps the directory entry; the running shell keeps its open file and
+# reads it to the end undisturbed. And nothing half-written is ever reachable
+# under the real name, because the real name only appears once the file behind
+# it is complete.
+#
+# Lifted from ma-reader-thermux. See MANTRA_MANIFEST/modules/termux-app.md 4.
 BIN="${PREFIX:-/usr/local}/bin"
 mkdir -p "$BIN"
-cat > "$BIN/toml" << 'LAUNCHEOF'
+
+put_cmd() {   # $1 = final path
+  chmod +x "$1.new" 2>/dev/null || true
+  mv -f "$1.new" "$1"
+}
+
+# a run that died between writing and renaming leaves these behind
+for _c in toml toml-update; do rm -f "$BIN/$_c.new" 2>/dev/null || true; done
+
+cat > "$BIN/toml.new" << 'LAUNCHEOF'
 #!/data/data/com.termux/files/usr/bin/bash
 # TOML - merge a key export into a secrets file. Loopback only.
 APPDIR="$HOME/.toml"
@@ -120,10 +160,149 @@ PORT="${TOML_PORT:-8099}"
 PYBIN="$(command -v python 2>/dev/null || command -v python3 2>/dev/null)"
 TOML_PORT="$PORT" "$PYBIN" "$APPDIR/server.py"
 LAUNCHEOF
-chmod +x "$BIN/toml"
+put_cmd "$BIN/toml"
+
+# ------------------------------------------------------------ toml-update --
+cat > "$BIN/toml-update.new" << 'UPDEOF'
+#!/data/data/com.termux/files/usr/bin/bash
+# TOML - one word to get the current version.
+#
+# IT UPDATES. An earlier updater elsewhere in this account only left the
+# command behind and did not install anything, "which looked exactly like
+# nothing happening" (ma-reader-thermux/update.sh). This fetches and installs
+# in the same run.
+#
+# IT ASKS FIRST, and it validates before it replaces anything. A truncated
+# installer that gets installed is worse than an update that failed and said
+# so - so on any doubt it prints "nothing was changed" and stops.
+set -e
+REPO="${TOML_REPO:-markoboskoauroville/TOML}"
+BRANCH="${TOML_BRANCH:-main}"
+FILE="toml-termux.sh"
+BASE="${TOML_UPDATE_BASE:-https://raw.githubusercontent.com/$REPO/$BRANCH}"
+
+if [ -t 1 ]; then
+  F=$'[38;5;214m'; DIM=$'[0;90m'; GREEN=$'[1;32m'
+  RED=$'[38;5;203m'; OFF=$'[0m'
+else
+  F=''; DIM=''; GREEN=''; RED=''; OFF=''
+fi
+
+edition_of() { grep -m1 'edition: v' "$1" 2>/dev/null | sed 's/.*edition: //' | tr -d ' 
+'; }
+
+HERE=""
+[ -f "$HOME/.toml/installer.sh" ] && HERE="$(edition_of "$HOME/.toml/installer.sh")"
+[ -z "$HERE" ] && HERE="$(grep -m1 'APP_VERSION = ' "$HOME/.toml/server.py" 2>/dev/null | sed 's/.*"\(v[0-9]*\)".*//')"
+
+printf '
+  '"$F"'TOML update'"$OFF"'
+'
+[ -n "$HERE" ] && printf '  '"$DIM"'you have'"$OFF"'  %s
+' "$HERE"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+printf '  '"$DIM"'fetching'"$OFF"'  %s
+' "$BASE/$FILE"
+if ! curl -fsSL --retry 3 --connect-timeout 20 -o "$TMP/$FILE" "$BASE/$FILE"; then
+  printf '  '"$RED"'could not download it.'"$OFF"'
+'
+  printf '  '"$DIM"'If TOML is still a private repository an anonymous download
+'
+  printf '  cannot work. Ask Claude to make it public, or pull it on the Mac
+'
+  printf '  and copy the file across.'"$OFF"'
+'
+  printf '  nothing was changed.
+
+'
+  exit 1
+fi
+
+# --- three checks, and each one can fail on its own ------------------------
+SIZE=$(wc -c < "$TMP/$FILE" | tr -d ' ')
+if [ "$SIZE" -lt 20000 ]; then
+  printf '  '"$RED"'the download is only %s bytes.'"$OFF"' A captive portal page is
+' "$SIZE"
+  printf '  '"$DIM"'about that size; an installer is not.'"$OFF"'
+'
+  printf '  nothing was changed.
+
+'; exit 1
+fi
+if ! head -1 "$TMP/$FILE" | grep -q '^#!'; then
+  printf '  '"$RED"'that is not a script - no shebang on the first line.'"$OFF"'
+'
+  printf '  nothing was changed.
+
+'; exit 1
+fi
+PARSE="$(bash -n "$TMP/$FILE" 2>&1)" || {
+  printf '  '"$RED"'the download did not parse.'"$OFF"'
+'
+  printf '  nothing was changed.
+
+'; exit 1
+}
+# bash -n WARNS about an unterminated heredoc and STILL EXITS ZERO, so a
+# clean status is not enough. Any output at all is a reason to stop.
+if [ -n "$PARSE" ]; then
+  printf '  '"$RED"'the download parsed with warnings:'"$OFF"' %s
+' "$PARSE"
+  printf '  nothing was changed.
+
+'; exit 1
+fi
+# AND THE SENTINEL, because bash -n IS NOT A COMPLETENESS CHECK. Measured
+# 25.8.2026: this installer cut in half mid-heredoc only WARNED, exited
+# zero, and installed half the app. ma-reader-thermux/update.sh has the
+# same three checks and the same hole. A last line that can only exist
+# when the file is whole answers the question bash -n cannot.
+if ! tail -1 "$TMP/$FILE" | grep -q '^# TOML-INSTALLER-END'; then
+  printf '  '"$RED"'the download stops early - its last line is missing.'"$OFF"'
+'
+  printf '  '"$DIM"'A truncated transfer, not a bad version.'"$OFF"'
+'
+  printf '  nothing was changed.
+
+'; exit 1
+fi
+
+THERE="$(edition_of "$TMP/$FILE")"
+printf '  '"$GREEN"'got'"$OFF"'       %s, %s bytes
+' "${THERE:-unknown}" "$SIZE"
+
+if [ -n "$HERE" ] && [ "$HERE" = "$THERE" ]; then
+  printf '  '"$DIM"'that is the version you already have.'"$OFF"'
+'
+fi
+
+if [ "${TOML_UPDATE_YES:-}" != "1" ]; then
+  printf '
+  install it? [y/N] '
+  read -r ANS
+  case "$ANS" in
+    y|Y|yes|YES) ;;
+    *) printf '  nothing was changed.
+
+'; exit 0 ;;
+  esac
+fi
+
+cp -f "$TMP/$FILE" "$TMP/run.sh"
+bash "$TMP/run.sh"
+UPDEOF
+put_cmd "$BIN/toml-update"
+
+# The installer keeps a copy of itself, so toml-update can read the edition
+# that is actually installed rather than guessing from the app version.
+cp -f "$0" "$HOME/.toml/installer.sh" 2>/dev/null || true
 
 echo ""
 printf "  ${GREEN:-}installed${OFF:-}  type ${KEY:-}toml${OFF:-} to run it\n"
+printf "  ${DIM:-}update it any time with${OFF:-} ${KEY:-}toml-update${OFF:-}${DIM:-} - one word, it asks first${OFF:-}\n"
 echo ""
 echo "  The page opens by itself. No address to type."
 echo ""
@@ -136,7 +315,18 @@ echo "  Not reachable from your Wi-Fi, on purpose."
 echo "  Values are masked on screen; copy takes the real text either way."
 echo "  Nothing is written to disk and nothing is sent anywhere."
 echo "=========================================================="
-'''
+
+# ---------------------------------------------------------------- the end --
+# THE SENTINEL, and it exists because `bash -n` IS NOT A COMPLETENESS CHECK.
+# Measured 25.8.2026: a copy of this installer cut in half mid-heredoc makes
+# `bash -n` print "warning: here-document delimited by end-of-file" and EXIT
+# ZERO. The truncated file passed the parse check and installed half the app.
+# ma-reader-thermux/update.sh has the same three checks and the same hole.
+#
+# A last line that only exists when the file is whole answers the question
+# `bash -n` cannot: did all of it arrive.
+# TOML-INSTALLER-END v__V__
+'''.replace("__V__", VERSION)
 
 
 def build():
