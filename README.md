@@ -2,7 +2,7 @@
 
 **Merge an exported key file into a secrets file, on your own phone, and copy the result.**
 
-Termux · Flask · loopback only · version 1
+Termux · Flask · loopback only · version 2
 
 ---
 
@@ -22,10 +22,38 @@ So the formatting happens on the device that already has the keys.
 ## Install
 
 ```bash
-bash 1-toml-v1-termux.sh
+bash 2-toml-v2-termux.sh
 ```
 
-Then `toml`, from anywhere.
+Then `toml`, from anywhere. **The page opens by itself — there is no address to type.**
+
+### How it opens, and why it is not one line
+
+`webbrowser.open` does not work on Termux. It looks for desktop browsers and desktop
+environment variables, finds none, and returns False silently. That was v1's bug.
+
+    1  Chrome by intent    am start -a VIEW -d <url> -p <package>
+    2  the phone default   termux-open-url
+    3  a desktop           xdg-open, open
+    4  webbrowser          last, and only as a courtesy
+
+**`am start` prints its failures and still exits zero.** Asking for a package that is not
+installed writes `Error: Activity not started` and returns success, so the *output* is read,
+not the status. Filtered by package rather than activity, because Chrome's activity name has
+changed between versions and the package name never has. Both lessons are from
+`ma-reader-thermux`.
+
+**It waits for the port to really accept a connection before opening.** v1 opened on a
+one-second timer, which is a guess about how long a phone takes to bind a socket. Guess low and
+the page says "connection refused", and somebody who sees that closes the tab and does not try
+again.
+
+### It never fails to start because a port is busy
+
+8099, then the next fifteen, then whatever the system gives — and it **says which**, because a
+page that quietly opens somewhere other than where you expect is its own confusion. The thing
+most likely to be holding 8099 is this app still running from before, so without this it would
+block on its own success case.
 
 ## What it does not do
 
@@ -81,6 +109,7 @@ generic fallback that put five AssemblyAI keys in the Speechify ring.
 ```bash
 python3 tests/test_parse_merge.py    # 47 — parser, merge, masking, the real exports
 python3 tests/test_server.py         # 24 — real HTTP, guard sabotage, path escapes
+python3 tests/test_opener.py         # 17 — auto-open, the am lie, port collision
 python3 tools/build_installer.py --check
 ```
 

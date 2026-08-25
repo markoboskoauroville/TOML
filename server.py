@@ -20,7 +20,6 @@ VERSION 1.
 import os
 import sys
 import threading
-import webbrowser
 
 from flask import Flask, jsonify, render_template, request
 
@@ -28,11 +27,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import guard          # noqa: E402
 import merge as M     # noqa: E402
+import opener         # noqa: E402
 import parsers        # noqa: E402
+import portpick       # noqa: E402
 
-APP_VERSION = "v1"
+APP_VERSION = "v2"
 HOST = "127.0.0.1"
-PORT = int(os.environ.get("TOML_PORT", "8099"))
+WANTED_PORT = int(os.environ.get("TOML_PORT", "8099"))
+# THE PORT ACTUALLY BOUND, filled in by main(). Everything that needs a
+# port reads THIS, never WANTED_PORT — guard.check compares Origin
+# against it, and told the wrong number it would refuse every request
+# from the page it just opened.
+PORT = WANTED_PORT
 HOME = os.path.expanduser("~")
 
 # A file bigger than this is not a key file. Reading a 2 GB video into
@@ -169,16 +175,48 @@ def quit_():
 
 
 def main():
+    """Pick a port, start serving, and open the page by itself.
+
+    THE ORDER IS THE POINT. v1 opened the browser on a one-second timer,
+    which is a guess about how long a phone takes to bind a socket. Guess
+    low and the page says "connection refused", and somebody who sees
+    that closes the tab and does not try again. So the opener waits for a
+    real connection to the port and only then opens anything.
+    """
+    global PORT
     try:
         import flask.cli
         flask.cli.show_server_banner = lambda *a, **k: None
-    except Exception:
+    except Exception:                                        # noqa: BLE001
         pass
-    url = "http://%s:%d/" % (HOST, PORT)
-    print("\n  TOML %s   %s" % (APP_VERSION, url))
-    print("  merges a key export into a secrets file. Nothing leaves this phone.")
+
+    PORT, note = portpick.pick(HOST, WANTED_PORT)
+    url = "http://localhost:%d/" % PORT
+
+    print("\n  TOML %s" % APP_VERSION)
+    print("  %s" % url)
+    if note:
+        print("  %s" % note)
+    ip = opener.lan_ip()
+    if ip:
+        print("  not on %s — this app answers loopback only, on purpose" % ip)
+
+    def report(ready, opened, u):
+        if not ready:
+            print("  the server did not come up in time — open %s by hand" % u)
+        elif opened:
+            print("  opened in %s" % opened)
+        else:
+            print("  no browser would open. Open this by hand:\n  %s" % u)
+            if opener.is_termux():
+                print("  (pkg install termux-tools gives termux-open-url)")
+
+    threading.Thread(target=opener.open_when_ready,
+                     kwargs={"host": HOST, "port": PORT, "url": url,
+                             "on_result": report},
+                     daemon=True).start()
+
     print("  Ctrl-C to stop.\n")
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
         from waitress import serve
         serve(app, host=HOST, port=PORT, threads=4, _quiet=True)

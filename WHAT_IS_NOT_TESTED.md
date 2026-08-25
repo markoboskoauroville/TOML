@@ -1,4 +1,4 @@
-# What is not tested — TOML v1
+# What is not tested — TOML v2
 
 Per `four-tests.md` §"Say what you did NOT test", and it is as plain as what works.
 
@@ -11,8 +11,12 @@ folder. The following are therefore unproven:
 - `pkg install python` / `pip install flask waitress` inside Termux
 - `waitress` importing on Android — the code falls back to Flask's own server if it does not
 - `$PREFIX/bin` being on the path, so that typing `toml` works
-- whether Termux's `webbrowser.open` reaches Android's browser at all. If it does not, the URL
-  is printed and can be opened by hand — that path is untested too
+- **`am start` against a real Chrome.** The whole Chrome branch is driven by an injected fake.
+  Its logic is checked, including the exit-zero lie; what is unproven is that a real Android
+  `am` behaves the way `ma-reader-thermux` recorded it behaving. The four package names are
+  copied from there and not re-verified
+- `termux-open-url` reaching a real Android browser. A stand-in on the PATH proves the server
+  calls it with the right URL and nothing more
 
 ## Never opened in a browser
 
@@ -30,16 +34,21 @@ The fallback — select the text so it can be copied by hand — is also unteste
 
 ## Tested with substitutes
 
-The upgrade test installs v1 over v1, because there is no v0. It proves files are replaced and
-unrelated files survive; it does not prove a *format* change survives, because no format has
-changed yet.
+The upgrade test is now real: **v1 is cloned from GitHub, installed, used, and v2 installed on
+top of it.** v1's absence of `opener.py` is asserted before the upgrade, so it cannot be the new
+version installed twice. What it still does not prove is a *format* change surviving, because
+no stored format has changed.
 
 ## What was measured
 
 - 47 parser/merge checks, including Baba's real 21-account Hume export and real 5-key Groq export
+- 17 checks on the auto-open: every branch of the chooser, the `am` exit-zero lie, the wait for
+  the port, port collision, and one end-to-end run where the real server opens a real URL that
+  really answers 200 on a port it had to move to
 - 24 checks against a real server over real HTTP: DNS rebinding, cross-site Origin, missing
   guard header, absolute paths, `..` climbs, symlink escape, empty file, prose, binary, and the
   same merge run twice
 - three mutations, each confirmed to move behaviour and not only the file:
-  the `[[ ]]` block-end fix, the parser pass order, the guard header check
+  the `[[ ]]` block-end fix, the parser pass order, the guard header check, trusting `am`'s exit
+  code, opening on a timer, and opening the wanted port rather than the bound one
 - the installer run for real, and its output compared byte for byte against the repository

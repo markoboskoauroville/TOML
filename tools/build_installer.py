@@ -23,11 +23,11 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VERSION = "1"
+VERSION = "2"
 OUT = os.path.join(ROOT, "%s-toml-v%s-termux.sh" % (VERSION, VERSION))
 
-SOURCES = ["parsers.py", "merge.py", "guard.py", "server.py",
-           "templates/index.html"]
+SOURCES = ["parsers.py", "merge.py", "guard.py", "portpick.py",
+           "opener.py", "server.py", "templates/index.html"]
 
 HEADER = r'''#!/data/data/com.termux/files/usr/bin/bash
 ###############################################################################
@@ -61,6 +61,17 @@ HEADER = r'''#!/data/data/com.termux/files/usr/bin/bash
 # come through byte for byte. A key already in the file is left alone. A key
 # in the file but not in the export is NEVER removed - rotating means adding
 # the new one here and revoking the old one at the provider.
+#
+# THE PAGE OPENS ITSELF. Type toml and the browser comes up. It tries Chrome
+# by intent first, then termux-open-url, then the desktop openers - and it
+# READS what `am` printed rather than its exit code, because `am` writes
+# "Error: Activity not started" and exits zero anyway. It also waits for the
+# port to really accept a connection before opening, so the page is never
+# "connection refused".
+#
+# IT NEVER FAILS TO START ON A BUSY PORT. 8099, then the next fifteen, then
+# whatever the system gives - and it says which, because a page that quietly
+# opens somewhere else is its own confusion.
 #
 # Install:  bash %s-toml-v%s-termux.sh      Run:  toml
 ###############################################################################
@@ -114,11 +125,14 @@ chmod +x "$BIN/toml"
 echo ""
 printf "  ${GREEN:-}installed${OFF:-}  type ${KEY:-}toml${OFF:-} to run it\n"
 echo ""
+echo "  The page opens by itself. No address to type."
+echo ""
 echo "  1  choose your secrets file      (or none, to start a fresh one)"
 echo "  2  choose the exported key file  (Hume, Groq, or any of them)"
 echo "  3  press merge, press copy, paste into Streamlit"
 echo ""
-echo "  Serves on 127.0.0.1:8099. Not reachable from your Wi-Fi, on purpose."
+echo "  Serves on 127.0.0.1:8099, or the next free port if that one is busy."
+echo "  Not reachable from your Wi-Fi, on purpose."
 echo "  Values are masked on screen; copy takes the real text either way."
 echo "  Nothing is written to disk and nothing is sent anywhere."
 echo "=========================================================="
