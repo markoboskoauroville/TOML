@@ -2,7 +2,7 @@
 
 **Merge an exported key file into a secrets file, on your own phone, and copy the result.**
 
-Termux · Flask · loopback only · version 3
+Termux · Flask · loopback only · version 4
 
 ---
 
@@ -101,6 +101,21 @@ quit it. Not saved, not cached, not logged.
 adding the new one here and revoking the old one at the provider — a merge tool that dropped
 keys would be doing the revoking in the wrong place, with no way back.
 
+### Where the picker opens
+
+**`~/storage/downloads`**, because that is where a key export lands when you save it from a
+browser or a chat. If `termux-setup-storage` has not been run there is no such folder, and it
+opens in home instead rather than on an error.
+
+The shortcuts along the top of the picker jump between home and every folder
+`termux-setup-storage` linked — the one you are in is dimmed, not hidden.
+
+**Widening the root did not loosen the guard.** `~/storage/downloads` is a *symlink* pointing
+outside home, so the folder had to be added to a fixed list of allowed roots. Every candidate path
+is still resolved through its symlinks first and then matched against that list, which is why a
+link sitting *inside* Downloads and pointing at `/etc` is still refused. There is a test for
+exactly that.
+
 **It does not lose your file.** Comments, usernames, `SHEETS_URL`, spacing: through byte for
 byte. The merge is surgical — only the arrays and the `[[HUME_ACCOUNTS]]` blocks are touched.
 
@@ -146,6 +161,7 @@ python3 tests/test_parse_merge.py    # 47 — parser, merge, masking, the real e
 python3 tests/test_server.py         # 24 — real HTTP, guard sabotage, path escapes
 python3 tests/test_opener.py         # 17 — auto-open, the am lie, port collision
 python3 tests/test_update.py         # 30 — toml-update, over a real HTTP server
+python3 tests/test_roots.py          # 22 — the Downloads root, and the escapes it refuses
 python3 tools/build_installer.py --check
 ```
 

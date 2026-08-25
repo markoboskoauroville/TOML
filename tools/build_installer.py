@@ -23,7 +23,7 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VERSION = "3"
+VERSION = "4"
 # THE FILENAME IS FROZEN, and that is deliberate.
 #
 # MANTRA_MANIFEST/modules/termux-app.md §11: versioning.md wants the whole

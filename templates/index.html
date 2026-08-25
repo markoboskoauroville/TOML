@@ -53,8 +53,14 @@ button:active{transform:translateY(1px)}
 .grow{flex:1}
 
 /* the picker */
-.picker{position:fixed;inset:0;background:rgba(11,13,16,.97);z-index:9;
-  padding:var(--gap);overflow:auto;display:none}
+.picker{position:fixed;inset:0;background:var(--bg);z-index:9;
+  padding:var(--gap);overflow:auto;overscroll-behavior:contain;display:none}
+/* SOLID, NOT rgba(...,.97). Baba's screenshot at 04:58 on 25.8.2026 shows
+   the whole page printed through the picker — the header, the section
+   titles and the placeholder text all legible behind the folder list. A
+   97% wash is not a background, it is a tint, and on a near-black page
+   with sand-coloured text the remaining 3% is still readable. Anything
+   that covers the page uses the page's own background colour. */
 .picker.on{display:block}
 .picker .cwd{font-family:ui-monospace,Menlo,monospace;font-size:12px;
   color:#8A93A0;word-break:break-all;margin:0 0 10px}
@@ -75,6 +81,10 @@ textarea{width:100%;min-height:240px;background:#0E1318;color:var(--sand);
   background:var(--slate);color:var(--sand)}
 .chip b{color:var(--amber);font-variant-numeric:tabular-nums}
 .chip.none{opacity:.5}
+/* A shortcut is a place, so it is pressable; the one you are already in
+   is dimmed rather than removed. §1 again. */
+.chip.go{cursor:pointer;border:1px solid transparent}
+.chip.go.here{opacity:.4;pointer-events:none}
 
 .note{font-size:13px;color:#8A93A0;margin:10px 0 0}
 .note.warn{color:var(--amber-dim)}
@@ -132,6 +142,7 @@ textarea{width:100%;min-height:240px;background:#0E1318;color:var(--sand);
     <span class="grow"></span>
     <button class="ghost" id="b-up" onclick="goUp()">up</button>
   </div>
+  <div class="tally" id="shortcuts"></div>
   <p class="cwd" id="cwd"></p>
   <div id="list"></div>
 </div>
@@ -161,6 +172,14 @@ async function browse(path){
   if(d.error){ say(d.error); closePicker(); return; }
   cwd = d.path; parent = d.parent;
   el('cwd').textContent = d.path;
+  const S = el('shortcuts'); S.innerHTML = '';
+  (d.shortcuts || []).forEach(r => {
+    const c = document.createElement('span');
+    c.className = 'chip go' + (r.here ? ' here' : '');
+    c.textContent = r.name;
+    c.onclick = () => browse(r.path);
+    S.appendChild(c);
+  });
   el('b-up').classList.toggle('off', !d.parent);
   const L = el('list'); L.innerHTML = '';
   d.dirs.forEach(x => L.appendChild(row('▸', x.name, '', () => browse(x.path))));

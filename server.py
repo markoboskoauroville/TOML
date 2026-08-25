@@ -31,7 +31,7 @@ import opener         # noqa: E402
 import parsers        # noqa: E402
 import portpick       # noqa: E402
 
-APP_VERSION = "v3"
+APP_VERSION = "v4"
 HOST = "127.0.0.1"
 WANTED_PORT = int(os.environ.get("TOML_PORT", "8099"))
 # THE PORT ACTUALLY BOUND, filled in by main(). Everything that needs a
@@ -61,17 +61,82 @@ def _guard():
         return refused
 
 
-def _safe(path):
-    """Absolute, real, and inside the home directory.
+def storage_roots():
+    """Every folder the picker may reach, resolved.
 
-    Resolves symlinks BEFORE comparing, because a link in home pointing
-    at /etc passes a string check and fails the only check that matters.
+    HOME, plus whatever `termux-setup-storage` linked into ~/storage.
+
+    THIS HAD TO WIDEN, AND HERE IS WHY. Baba asked for the picker to open
+    in ~/storage/downloads. That is a SYMLINK, and it points at
+    /storage/emulated/0/Download — outside HOME. `_safe` resolves links
+    before comparing, on purpose, so the folder he asked for would have
+    been refused by the guard and the picker would have opened on an
+    error. Setting it as the default without widening the roots would
+    have shipped an app that cannot start.
+
+    So the roots are a LIST, and every entry is still a resolved absolute
+    path that a candidate must sit under. ~/storage exists only because
+    he ran `termux-setup-storage` himself, which is Android asking him
+    the permission question directly — a better authority for "may this
+    app read shared storage" than anything this code could invent.
+
+    Read once at startup. Running `termux-setup-storage` while the server
+    is up needs a restart, which is one word.
+    """
+    roots, seen = [], set()
+
+    def add(p):
+        rp = os.path.realpath(p)
+        if rp not in seen and os.path.isdir(rp):
+            seen.add(rp)
+            roots.append(rp)
+
+    add(HOME)
+    shelf = os.path.join(HOME, "storage")
+    if os.path.isdir(shelf):
+        try:
+            for name in sorted(os.listdir(shelf)):
+                add(os.path.join(shelf, name))
+        except OSError:
+            pass
+    return roots
+
+
+ROOTS = storage_roots()
+
+
+def start_dir():
+    """Where the picker opens. Downloads if it exists, else home.
+
+    The same chain MAHA_TRANSCRIBE_TERMUX uses for its export folder, and
+    for the same reason: it must never hard-fail. A picker that opens
+    somewhere useful beats one that opens on an error.
+    """
+    for c in (os.path.join(HOME, "storage", "downloads"),
+              os.path.join(HOME, "Downloads"),
+              os.path.join(HOME, "downloads")):
+        if os.path.isdir(c):
+            return os.path.realpath(c)
+    return os.path.realpath(HOME)
+
+
+START = start_dir()
+
+
+def _safe(path):
+    """Absolute, real, and under one of ROOTS.
+
+    Resolves symlinks BEFORE comparing, because a link pointing at /etc
+    passes a string check and fails the only check that matters. That is
+    also exactly why ROOTS had to become a list rather than the check
+    being loosened — a resolved path is still compared against a fixed
+    set of resolved prefixes, and nothing else gets in.
     """
     p = os.path.realpath(os.path.expanduser(path or ""))
-    home = os.path.realpath(HOME)
-    if p != home and not p.startswith(home + os.sep):
-        return None
-    return p
+    for root in ROOTS:
+        if p == root or p.startswith(root + os.sep):
+            return p
+    return None
 
 
 @app.route("/")
@@ -87,9 +152,9 @@ def ls():
     the single most likely place he is going. A picker that hides the
     thing it is for is a picker nobody can use.
     """
-    p = _safe(request.args.get("path") or HOME)
+    p = _safe(request.args.get("path") or START)
     if not p or not os.path.isdir(p):
-        return jsonify(error="not a folder inside home"), 400
+        return jsonify(error="that folder is not one this app may read"), 400
     dirs, files = [], []
     try:
         for name in sorted(os.listdir(p), key=str.lower):
@@ -105,14 +170,21 @@ def ls():
     except PermissionError:
         return jsonify(error="cannot read that folder"), 403
     up = os.path.dirname(p)
+    # The shortcuts, so a picker that opens in Downloads is not a picker
+    # that can only see Downloads. Sent every time and rendered every
+    # time — design-language.md §1: nothing appears, nothing disappears.
+    shortcuts = [{"name": ("home" if r == os.path.realpath(HOME)
+                           else os.path.basename(r) or r),
+                  "path": r, "here": r == p}
+                 for r in ROOTS]
     return jsonify(path=p, parent=(up if _safe(up) else None),
-                   dirs=dirs, files=files)
+                   dirs=dirs, files=files, shortcuts=shortcuts)
 
 
 def _read(path):
     p = _safe(path)
     if not p or not os.path.isfile(p):
-        return None, "not a file inside home"
+        return None, "not a file this app may read"
     if os.path.getsize(p) > MAX_BYTES:
         return None, "too big to be a key file"
     try:

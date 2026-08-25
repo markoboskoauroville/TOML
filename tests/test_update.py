@@ -15,6 +15,7 @@ runs curl against a real socket, exactly as it will against GitHub.
 
 import http.server
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -101,6 +102,12 @@ def run_update(env, yes=True, base=None):
 
 current = open(INSTALLER, encoding="utf-8").read()
 
+# THE VERSION IS READ, NEVER TYPED. four-tests.md, "Test the test": an
+# expected version number hardcoded in a test fails the moment the version
+# is bumped, for no reason connected to the feature. This file said "v3"
+# in three places and went red on the v4 bump, which is that trap exactly.
+HERE_V = re.search(r"edition: v(\d+)", current).group(1)
+
 print("1 THE COMMAND EXISTS AND IS INSTALLED BY THE INSTALLER\n")
 home, env = fresh_home()
 upd = os.path.join(env["PREFIX"], "bin", "toml-update")
@@ -123,8 +130,8 @@ check("1f both commands carry the TERMUX shebang, not this machine's",
 print("\n2 IT ACTUALLY UPDATES — the failure §10 names\n")
 # A version that is visibly different, so "did anything change" has an
 # answer that is not a guess.
-newer = current.replace("edition: v3", "edition: v99", 1).replace(
-    'APP_VERSION = "v3"', 'APP_VERSION = "v99"', 1)
+newer = current.replace("edition: v%s" % HERE_V, "edition: v99", 1).replace(
+    'APP_VERSION = "v%s"' % HERE_V, 'APP_VERSION = "v99"', 1)
 serve(newer)
 code, out = run_update(env)
 after = open(os.path.join(home, ".toml", "server.py"), encoding="utf-8").read()
@@ -133,7 +140,8 @@ check("2b THE FILES ON DISK CHANGED — v99 is installed",
       'APP_VERSION = "v99"' in after,
       [ln for ln in after.splitlines() if "APP_VERSION" in ln])
 check("2c it said which edition it fetched", "v99" in out, out[-200:])
-check("2d it said which edition was already there", "v3" in out, out[-200:])
+check("2d it said which edition was already there",
+      "v" + HERE_V in out, out[-200:])
 check("2e the app still runs after the update",
       subprocess.run([sys.executable, "-c",
                       "import sys; sys.path.insert(0,'%s');"
@@ -158,7 +166,7 @@ for name, body, why in (
         # overlapped — removing the warnings check left everything green
         # because the sentinel was covering for it.
         ("cut mid-heredoc but WEARING the last line",
-         current[:len(current) // 2] + "\n# TOML-INSTALLER-END v3\n",
+         current[:len(current) // 2] + "\n# TOML-INSTALLER-END v%s\n" % HERE_V,
          "warn")):
     home2, env2 = fresh_home()
     before = open(os.path.join(home2, ".toml", "server.py"),

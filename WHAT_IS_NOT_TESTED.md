@@ -1,4 +1,4 @@
-# What is not tested — TOML v3
+# What is not tested — TOML v4
 
 Per `four-tests.md` §"Say what you did NOT test", and it is as plain as what works.
 
@@ -18,9 +18,18 @@ folder. The following are therefore unproven:
 - `termux-open-url` reaching a real Android browser. A stand-in on the PATH proves the server
   calls it with the right URL and nothing more
 
-## Never opened in a browser
+## Opened in a browser once, on 25.8.2026
 
-**No human eye has seen this page.** This is the exact failure that put five faults in front of
+Baba ran v3 on the phone at 04:58 and photographed it. That is the first time any of this was
+seen. It found a real fault immediately: **the picker overlay was translucent** — `rgba(11,13,16,
+.97)` — and the whole page printed through behind the folder list. It is the page's own solid
+background now.
+
+The rest of the page below is still only inspected in code.
+
+## Otherwise never opened in a browser
+
+**Almost no human eye has seen this page.** This is the exact failure that put five faults in front of
 Baba at 03:20 on 25.8.2026: three versions shipped through nine gates without anyone opening a
 browser. Named here so it is not claimed by silence.
 
@@ -69,6 +78,9 @@ no stored format has changed.
   host, and the frozen filename. Two mutations prove the warnings check and the sentinel check
   each fail alone — the first draft of them overlapped and one could be deleted with everything
   still green
+- 22 checks on the picker root: that Downloads is where it opens, that its symlink resolves and
+  is allowed, and that a link inside Downloads pointing out of every root is still refused —
+  three mutations, including comparing the path as a string before resolving it
 - 17 checks on the auto-open: every branch of the chooser, the `am` exit-zero lie, the wait for
   the port, port collision, and one end-to-end run where the real server opens a real URL that
   really answers 200 on a port it had to move to
