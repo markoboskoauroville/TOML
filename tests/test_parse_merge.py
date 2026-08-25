@@ -105,6 +105,19 @@ check("2f no Hume key leaks into the shape pass as 'unknown'",
 
 # ---------------------------------------------------------------- 3 --
 print("\n3 THE MERGE — nothing that was in the file comes out of it\n")
+# THE NAMES HERE ARE INVENTED, AND THAT IS NOT COSMETIC.
+#
+# TTT-LLL's door has no password behind the username — the name IS the
+# whole credential. tests/live_check.py in that repo says so in its own
+# words: "a real name in a committed test file is a credential in the
+# repository." This file was drafted with Baba's real ADMIN_USER1 and
+# FREE_USER1 in it, and it was caught on 25.8.2026 in the scan before
+# making this repository public. A private repo is not a safe place to
+# park a credential either; it is one setting away from being a public
+# one.
+#
+# What the checks below actually need is a value that must SURVIVE the
+# merge untouched, and any string does that.
 BASE = '''# Baba's own note, which must survive
 ADMIN_USER1  = "testuser"
 FREE_USER1   = "otheruser"

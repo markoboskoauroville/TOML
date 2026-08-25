@@ -84,7 +84,7 @@ echo ""
 
 # built from:
 #   parsers.py             964a6e6ff972
-#   merge.py               79f47a9c99ae
+#   merge.py               25e74178e595
 #   guard.py               5a6014ea90c6
 #   portpick.py            56d48285542b
 #   opener.py              8dd59c03fa66
@@ -243,8 +243,8 @@ THE RULE THIS MODULE EXISTS TO KEEP:
 
     NOTHING THAT WAS IN THE FILE COMES OUT OF IT.
 
-Baba's secrets file holds ADMIN_USER1, FREE_USER2, SHEETS_URL,
-DRIVE_ROOT_ID and comments he wrote himself. A merge that parses TOML
+Baba's secrets file holds usernames, sheet URLs, drive ids and comments
+he wrote himself. A merge that parses TOML
 into a dict and dumps it back would return a file that is *equivalent*
 and not the same: comments gone, order shuffled, his spacing replaced by
 a library's. He would paste it into Streamlit and lose the notes that
