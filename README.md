@@ -15,9 +15,11 @@ cannot be unsent.
 
 So the formatting happens on the device that already has the keys.
 
-    1  choose your secrets file      (or none, to start a fresh one)
-    2  choose the exported key file
-    3  press merge, press copy, paste into Streamlit
+```
+1  choose your secrets file      (or none, to start a fresh one)
+2  choose the exported key file
+3  press merge, press copy, paste into Streamlit
+```
 
 ## Install
 
@@ -67,10 +69,12 @@ lives in the `edition: v<n>` line inside the file, in `APP_VERSION`, and in the 
 `webbrowser.open` does not work on Termux. It looks for desktop browsers and desktop
 environment variables, finds none, and returns False silently. That was v1's bug.
 
-    1  Chrome by intent    am start -a VIEW -d <url> -p <package>
-    2  the phone default   termux-open-url
-    3  a desktop           xdg-open, open
-    4  webbrowser          last, and only as a courtesy
+```
+1  Chrome by intent    am start -a VIEW -d <url> -p <package>
+2  the phone default   termux-open-url
+3  a desktop           xdg-open, open
+4  webbrowser          last, and only as a courtesy
+```
 
 **`am start` prints its failures and still exits zero.** Asking for a package that is not
 installed writes `Error: Activity not started` and returns success, so the *output* is read,
